@@ -531,7 +531,24 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	zr := c.acquireReader(conn)
 
 	if !c.ResponseBodyStream {
-		err = respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize)
+		err = respI.ReadHeader(&resp.Header, zr)
+		if err == nil {
+			if resp.Header.StatusCode() == consts.StatusContinue {
+				// Read the next response according to http://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html .
+				err = respI.ReadHeader(&resp.Header, zr)
+			}
+			if err == nil {
+				if resp.Header.ContentLength() == -1 && c.ChunkStream {
+					err = respI.ReadBodyStreamWithoutHeader(resp, zr, c.MaxResponseBodySize, func() error {
+						c.releaseConn(cc)
+						return nil
+					})
+				} else {
+					err = respI.ReadLimitBody(resp, zr, c.MaxResponseBodySize)
+				}
+			}
+		}
+		//err = respI.ReadHeaderAndLimitBody(resp, zr, c.MaxResponseBodySize)
 	} else {
 		err = respI.ReadBodyStream(resp, zr, c.MaxResponseBodySize, func() error {
 			c.releaseConn(cc)
@@ -1203,4 +1220,6 @@ type ClientOptions struct {
 	RetryConfig *retry.Config
 
 	RetryIfFunc client.RetryIfFunc
+
+	ChunkStream bool
 }

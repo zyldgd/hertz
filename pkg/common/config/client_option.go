@@ -106,6 +106,8 @@ type ClientOptions struct {
 
 	// all configurations related to retry
 	RetryConfig *retry.Config
+
+	ChunkStream bool
 }
 
 func NewClientOptions(opts []ClientOption) *ClientOptions {

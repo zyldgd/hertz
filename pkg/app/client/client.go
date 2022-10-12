@@ -608,5 +608,6 @@ func newHttp1OptionFromClient(c *Client) *http1.ClientOptions {
 		ResponseBodyStream:            c.options.ResponseBodyStream,
 		RetryConfig:                   c.options.RetryConfig,
 		RetryIfFunc:                   c.RetryIfFunc,
+		ChunkStream:                   c.options.ChunkStream,
 	}
 }

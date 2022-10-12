@@ -147,3 +147,10 @@ func WithWriteTimeout(t time.Duration) config.ClientOption {
 		o.WriteTimeout = t
 	}}
 }
+
+// WithChunkStream sets enable chunk stream.
+func WithChunkStream(chunkStream bool) config.ClientOption {
+	return config.ClientOption{F: func(o *config.ClientOptions) {
+		o.ChunkStream = chunkStream
+	}}
+}
