@@ -20,11 +20,12 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 
 	"github.com/cloudwego/hertz/internal/bytestr"
 	internalStats "github.com/cloudwego/hertz/internal/stats"
