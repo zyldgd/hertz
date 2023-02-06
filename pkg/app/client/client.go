@@ -498,6 +498,7 @@ func (c *Client) do(ctx context.Context, req *protocol.Request, resp *protocol.R
 	if hc == nil {
 		if c.clientFactory == nil {
 			// load http1 client by default
+			hlog.Warnf("Create host client.")
 			c.clientFactory = factory.NewClientFactory(newHttp1OptionFromClient(c))
 		}
 		hc, _ = c.clientFactory.NewHostClient()
@@ -593,6 +594,7 @@ func (c *Client) GetDialerName() (dName string, err error) {
 
 // NewClient return a client with options
 func NewClient(opts ...config.ClientOption) (*Client, error) {
+	hlog.Warnf("Create new client.")
 	opt := config.NewClientOptions(opts)
 	if opt.Dialer == nil {
 		opt.Dialer = dialer.DefaultDialer()

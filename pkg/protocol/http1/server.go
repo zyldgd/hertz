@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"net"
 	"sync"
@@ -147,7 +148,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 	for {
 		connRequestNum++
-
+		hlog.Warnf("start request %d", connRequestNum)
 		if zr == nil {
 			zr = ctx.GetReader()
 		}
@@ -334,6 +335,8 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		if err = zw.Flush(); err != nil {
 			return
 		}
+		hlog.Warnf("finish request %d", connRequestNum)
+
 		if s.EnableTrace {
 			// write finished
 			if last := eventsToTrigger.pop(); last != nil {

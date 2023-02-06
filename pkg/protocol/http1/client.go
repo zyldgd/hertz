@@ -122,6 +122,8 @@ type HostClient struct {
 	connsCleanerRun bool
 
 	closed chan struct{}
+
+	Reqnum int32
 }
 
 func (c *HostClient) SetDynamicConfig(dc *client.DynamicConfig) {
@@ -472,7 +474,11 @@ func (c *HostClient) doNonNilReqResp(req *protocol.Request, resp *protocol.Respo
 	if resp == nil {
 		panic("BUG: resp cannot be nil")
 	}
-
+	reqNum := atomic.AddInt32(&c.Reqnum, 1)
+	hlog.Warnf("start %d requests", reqNum)
+	defer func() {
+		hlog.Warnf("finish %d requests", reqNum)
+	}()
 	atomic.StoreUint32(&c.lastUseTime, uint32(time.Now().Unix()-startTimeUnix))
 
 	rc := c.preHandleConfig(req.Options())
@@ -697,7 +703,8 @@ func (c *HostClient) acquireConn(dialTimeout time.Duration) (cc *clientConn, err
 	if startCleaner {
 		go c.connsCleaner()
 	}
-
+	reqNum := atomic.LoadInt32(&c.Reqnum)
+	hlog.Warnf("create conn for %v request", reqNum)
 	conn, err := c.dialHostHard(dialTimeout)
 	if err != nil {
 		c.decConnsCount()
