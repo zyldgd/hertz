@@ -42,8 +42,10 @@
 package protocol
 
 import (
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"net"
+	"reflect"
 	"sync"
 
 	"github.com/cloudwego/hertz/internal/nocopy"
@@ -274,6 +276,7 @@ func (resp *Response) resetSkipHeader() {
 // ResetBody resets response body.
 func (resp *Response) ResetBody() {
 	resp.bodyRaw = nil
+	hlog.Warnf("reset body")
 	resp.CloseBodyStream() //nolint:errcheck
 	if resp.body != nil {
 		if resp.body.Len() <= resp.maxKeepBodySize {
@@ -330,11 +333,14 @@ func (resp *Response) ConnectionClose() bool {
 }
 
 func (resp *Response) CloseBodyStream() error {
+	hlog.Warnf("CloseBodyStream")
 	if resp.bodyStream == nil {
 		return nil
 	}
 	var err error
+	hlog.Warnf(reflect.TypeOf(resp.bodyStream).String())
 	if bsc, ok := resp.bodyStream.(io.Closer); ok {
+		hlog.Warnf("ioCloser close bodystream")
 		err = bsc.Close()
 	}
 	resp.bodyStream = nil
