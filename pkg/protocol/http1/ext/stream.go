@@ -46,6 +46,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/cloudwego/hertz/internal/bytestr"
 	"github.com/cloudwego/hertz/pkg/common/bytebufferpool"
 	errs "github.com/cloudwego/hertz/pkg/common/errors"
 	"github.com/cloudwego/hertz/pkg/common/utils"
@@ -68,6 +69,8 @@ type bodyStream struct {
 	offset          int
 	contentLength   int
 	chunkLeft       int
+	// whether the chunk has reached the EOF
+	chunkEOF bool
 }
 
 // NoBody is an io.ReadCloser with no bytes. Read always returns EOF
@@ -119,6 +122,7 @@ func AcquireBodyStream(b *bytebufferpool.ByteBuffer, r network.Reader, contentLe
 	rs.prefetchedBytes = bytes.NewReader(b.B)
 	rs.reader = r
 	rs.contentLength = contentLength
+	rs.chunkEOF = false
 
 	return rs
 }
@@ -130,6 +134,10 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 		}
 	}()
 	if rs.contentLength == -1 {
+		if rs.chunkEOF {
+			return 0, io.EOF
+		}
+
 		if rs.chunkLeft == 0 {
 			chunkSize, err := utils.ParseChunkSize(rs.reader)
 			if err != nil {
@@ -138,6 +146,7 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 			if chunkSize == 0 {
 				err = utils.SkipCRLF(rs.reader)
 				if err == nil {
+					rs.chunkEOF = true
 					err = io.EOF
 				}
 				return 0, err
@@ -230,6 +239,45 @@ func (rs *bodyStream) skipRest() error {
 	// the bodyStream has been skip rest
 	if rs.prefetchedBytes == nil {
 		return nil
+	}
+
+	// the request is chunked encoding
+	if rs.contentLength == -1 {
+		if rs.chunkEOF {
+			return nil
+		}
+
+		strCRLFLen := len(bytestr.StrCRLF)
+		for {
+			chunkSize, err := utils.ParseChunkSize(rs.reader)
+			if err != nil {
+				return err
+			}
+
+			if chunkSize == 0 {
+				rs.chunkEOF = true
+				return utils.SkipCRLF(rs.reader)
+			}
+
+			err = rs.reader.Skip(chunkSize)
+			if err != nil {
+				return err
+			}
+
+			crlf, err := rs.reader.Peek(strCRLFLen)
+			if err != nil {
+				return err
+			}
+
+			if !bytes.Equal(crlf, bytestr.StrCRLF) {
+				return errBrokenChunk
+			}
+
+			err = rs.reader.Skip(strCRLFLen)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	// max value of pSize is 8193, it's safe.
 	pSize := int(rs.prefetchedBytes.Size())
