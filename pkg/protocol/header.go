@@ -43,6 +43,7 @@ package protocol
 
 import (
 	"bytes"
+	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery/stack"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -63,6 +64,8 @@ var (
 )
 
 type RequestHeader struct {
+	DebugStacks chan []byte
+
 	noCopy nocopy.NoCopy //lint:ignore U1000 until noCopy is used
 
 	disableNormalizing   bool
@@ -1217,6 +1220,8 @@ func (h *RequestHeader) collectCookies() {
 		return
 	}
 
+	h.DebugStacks <- stack.Stack(1)
+
 	for i, n := 0, len(h.h); i < n; i++ {
 		kv := &h.h[i]
 		if bytes.Equal(kv.key, bytestr.StrCookie) {
@@ -1280,6 +1285,7 @@ func (h *RequestHeader) SetCanonical(key, value []byte) {
 }
 
 func (h *RequestHeader) ResetSkipNormalize() {
+	h.DebugStacks = make(chan []byte, 20)
 	h.noHTTP11 = false
 	h.connectionClose = false
 	h.protocol = ""

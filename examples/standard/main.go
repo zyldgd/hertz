@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -36,6 +37,13 @@ func main() {
 	h.StaticFS("/", &app.FS{Root: "./", GenerateIndexPages: true})
 
 	h.GET("/ping", func(c context.Context, ctx *app.RequestContext) {
+		for i := 0; i < 100; i++ {
+			go func() {
+				ctx.Request.Header.Cookie("test")
+			}()
+		}
+		time.Sleep(200 * time.Millisecond)
+
 		ctx.JSON(consts.StatusOK, utils.H{"ping": "pong"})
 	})
 
