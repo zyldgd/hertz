@@ -82,6 +82,12 @@ func CaseInsensitiveCompare(a, b []byte) bool {
 	return true
 }
 
+func GetNormalizeHeaderKey(key string, disableNormalizing bool) string {
+	keyBytes := []byte(key)
+	NormalizeHeaderKey(keyBytes, disableNormalizing)
+	return string(keyBytes)
+}
+
 func NormalizeHeaderKey(b []byte, disableNormalizing bool) {
 	if disableNormalizing {
 		return
@@ -116,4 +122,13 @@ func NextLine(b []byte) ([]byte, []byte, error) {
 		n--
 	}
 	return b[:n], b[nNext+1:], nil
+}
+
+func FilterContentType(content string) string {
+	for i, char := range content {
+		if char == ' ' || char == ';' {
+			return content[:i]
+		}
+	}
+	return content
 }
