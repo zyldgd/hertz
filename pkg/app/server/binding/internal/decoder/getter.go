@@ -59,6 +59,13 @@ func path(req *protocol.Request, params param.Params, key string, defaultValue .
 }
 
 func postForm(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret string) {
+	if val := req.URI().QueryArgs().Peek(key); val != nil {
+		ret = string(val)
+	}
+	if len(ret) > 0 {
+		return
+	}
+
 	if val := req.PostArgs().Peek(key); val != nil {
 		ret = string(val)
 	}

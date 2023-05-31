@@ -65,6 +65,15 @@ func pathSlice(req *protocol.Request, params param.Params, key string, defaultVa
 }
 
 func postFormSlice(req *protocol.Request, params param.Params, key string, defaultValue ...string) (ret []string) {
+	req.URI().QueryArgs().VisitAll(func(queryKey, value []byte) {
+		if key == bytesconv.B2s(queryKey) {
+			ret = append(ret, string(value))
+		}
+	})
+	if len(ret) > 0 {
+		return
+	}
+
 	req.PostArgs().VisitAll(func(formKey, value []byte) {
 		if bytesconv.B2s(formKey) == key {
 			ret = append(ret, string(value))
