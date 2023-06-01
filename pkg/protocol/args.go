@@ -74,6 +74,12 @@ func (a *Args) Set(key, value string) {
 
 // Reset clears query args.
 func (a *Args) Reset() {
+	// release big block to gc
+	for i, _ := range a.args {
+		if len(a.args[i].value) > 1024 {
+			a.args[i].value = nil
+		}
+	}
 	a.args = a.args[:0]
 }
 
