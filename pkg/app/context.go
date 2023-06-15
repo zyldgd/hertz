@@ -209,6 +209,16 @@ type RequestContext struct {
 
 	// clientIPFunc get form value by use custom function.
 	formValueFunc FormValueFunc
+
+	exiled bool
+}
+
+func (ctx *RequestContext) Exile() {
+	ctx.exiled = true
+}
+
+func (ctx *RequestContext) IsExiled() bool {
+	return ctx.exiled
 }
 
 // Flush is the shortcut for ctx.Response.GetHijackWriter().Flush().
