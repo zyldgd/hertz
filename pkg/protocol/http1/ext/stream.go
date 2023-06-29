@@ -43,6 +43,7 @@ package ext
 
 import (
 	"bytes"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"sync"
 
@@ -246,6 +247,7 @@ func (rs *bodyStream) skipRest() error {
 		for {
 			chunkSize, err := utils.ParseChunkSize(rs.reader)
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] ParseChunkSize：%+v", err)
 				return err
 			}
 
@@ -256,11 +258,13 @@ func (rs *bodyStream) skipRest() error {
 
 			err = rs.reader.Skip(chunkSize)
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] Skip：%+v", err)
 				return err
 			}
 
 			crlf, err := rs.reader.Peek(strCRLFLen)
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] Peek：%+v", err)
 				return err
 			}
 
@@ -270,6 +274,7 @@ func (rs *bodyStream) skipRest() error {
 
 			err = rs.reader.Skip(strCRLFLen)
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] Skip2：%+v", err)
 				return err
 			}
 		}
@@ -293,6 +298,7 @@ func (rs *bodyStream) skipRest() error {
 		if skip == 0 {
 			_, err := rs.reader.Peek(1)
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] Peek2：%+v", err)
 				return err
 			}
 			skip = rs.reader.Len()
@@ -315,6 +321,9 @@ func (rs *bodyStream) skipRest() error {
 func ReleaseBodyStream(requestReader io.Reader) (err error) {
 	if rs, ok := requestReader.(*bodyStream); ok {
 		err = rs.skipRest()
+		if err != nil {
+			hlog.SystemLogger().Errorf("[zyl] skipRest：%+v", err)
+		}
 		rs.prefetchedBytes = nil
 		rs.offset = 0
 		rs.reader = nil

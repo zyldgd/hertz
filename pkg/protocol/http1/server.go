@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"net"
 	"sync"
@@ -194,8 +195,14 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			// Read body
 			if s.StreamRequestBody {
 				err = req.ReadBodyStream(&ctx.Request, zr, s.MaxRequestBodySize, s.GetOnly, !s.DisablePreParseMultipartForm)
+				if err != nil {
+					hlog.SystemLogger().Errorf("[zyl] ReadBodyStream：%+v", err)
+				}
 			} else {
 				err = req.ReadLimitBody(&ctx.Request, zr, s.MaxRequestBodySize, s.GetOnly, !s.DisablePreParseMultipartForm)
+				if err != nil {
+					hlog.SystemLogger().Errorf("[zyl] ReadLimitBody：%+v", err)
+				}
 			}
 		}
 
@@ -314,6 +321,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			})
 		}
 		if err = writeResponse(ctx, zw); err != nil {
+			hlog.SystemLogger().Errorf("[zyl] writeResponse：%+v", err)
 			return
 		}
 
@@ -327,11 +335,15 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 
 		// Release the zeroCopyReader before flush to prevent data race
 		if zr != nil {
-			zr.Release() //nolint:errcheck
+			err2 := zr.Release() //nolint:errcheck
+			if err2 != nil {
+				hlog.SystemLogger().Errorf("[zyl] Release：%+v", err)
+			}
 			zr = nil
 		}
 		// Flush the response.
 		if err = zw.Flush(); err != nil {
+			hlog.SystemLogger().Errorf("[zyl] Flush：%+v", err)
 			return
 		}
 		if s.EnableTrace {
@@ -345,6 +357,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		if ctx.Request.IsBodyStream() {
 			err = ext.ReleaseBodyStream(ctx.RequestBodyStream())
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] ReleaseBodyStream：%+v", err)
 				return
 			}
 		}
@@ -358,12 +371,16 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			// Hijacked conn process the timeout by itself
 			err = ctx.GetConn().SetReadTimeout(0)
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] SetReadTimeout：%+v", err)
 				return
 			}
 
 			// Hijack and block the connection until the hijackHandler return
 			s.HijackConnHandle(ctx.GetConn(), hijackHandler)
 			err = errHijacked
+			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] errHijacked：%+v", err)
+			}
 			return
 		}
 
