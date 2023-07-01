@@ -98,7 +98,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		// 4. Reset and recycle
 		ctx = s.Core.GetCtxPool().Get().(*app.RequestContext)
 
-		traceCtl        = s.Core.GetTracer()
+		//traceCtl        = s.Core.GetTracer()
 		eventsToTrigger *eventStack
 
 		// Use a new variable to hold the standard context to avoid modify the initial
