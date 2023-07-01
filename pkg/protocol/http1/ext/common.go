@@ -114,12 +114,17 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 	var n int
 	for {
 		n, err = r.Read(buf)
+		if err != nil && n != 0 && err != io.EOF {
+			hlog.SystemLogger().Errorf("[zyl] Read in WriteBodyChunked[%d]：%+v, buf[:%d]|%s|", n, err, len(buf), string(buf))
+		}
+
 		if n == 0 {
 			if err == nil {
 				panic("BUG: io.Reader returned 0, nil")
 			}
 			if err == io.EOF {
 				if err = WriteChunk(w, buf[:0], true); err != nil {
+					hlog.SystemLogger().Errorf("[zyl] WriteChunk：%+v, buf[:%d]|%s|", err, n, string(buf[:0]))
 					break
 				}
 				err = nil
@@ -127,9 +132,13 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 			break
 		}
 		if err = WriteChunk(w, buf[:n], true); err != nil {
-			hlog.SystemLogger().Errorf("[zyl] WriteChunk：%+v, buf[:%d]%+v", err, n, buf[:n])
+			hlog.SystemLogger().Errorf("[zyl] WriteChunk：%+v, buf[:%d]|%s|", err, n, string(buf[:n]))
 			break
 		}
+	}
+
+	if err != nil {
+		hlog.SystemLogger().Errorf("[zyl] WriteBodyChunked end：%+v, buf[:%d]|%s|", err, len(buf), string(buf))
 	}
 
 	utils.CopyBufPool.Put(vbuf)
@@ -292,11 +301,13 @@ func round2(n int) int {
 func WriteChunk(w network.Writer, b []byte, withFlush bool) (err error) {
 	n := len(b)
 	if err = bytesconv.WriteHexInt(w, n); err != nil {
+		hlog.SystemLogger().Errorf("[zyl] WriteHexInt：%+v, n:%d", err, n)
 		return err
 	}
 
 	w.WriteBinary(bytestr.StrCRLF) //nolint:errcheck
 	if _, err = w.WriteBinary(b); err != nil {
+		hlog.SystemLogger().Errorf("[zyl] WriteBinary1：%+v, b:%s", err, string(b))
 		return err
 	}
 
@@ -309,6 +320,9 @@ func WriteChunk(w network.Writer, b []byte, withFlush bool) (err error) {
 		return nil
 	}
 	err = w.Flush()
+	if err != nil {
+		hlog.SystemLogger().Errorf("[zyl] Flush in WriteChunk：%+v", err)
+	}
 	return
 }
 

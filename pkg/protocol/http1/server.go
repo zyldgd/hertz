@@ -98,7 +98,7 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		// 4. Reset and recycle
 		ctx = s.Core.GetCtxPool().Get().(*app.RequestContext)
 
-		//traceCtl        = s.Core.GetTracer()
+		traceCtl        = s.Core.GetTracer()
 		eventsToTrigger *eventStack
 
 		// Use a new variable to hold the standard context to avoid modify the initial
@@ -106,7 +106,26 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		cc = c
 	)
 
+	if s.EnableTrace {
+		eventsToTrigger = s.eventStackPool.Get().(*eventStack)
+	}
+
 	defer func() {
+		if s.EnableTrace {
+			if err != nil && !errors.Is(err, errs.ErrIdleTimeout) && !errors.Is(err, errs.ErrHijacked) {
+				ctx.GetTraceInfo().Stats().SetError(err)
+			}
+			// in case of error, we need to trigger all events
+			if eventsToTrigger != nil {
+				for last := eventsToTrigger.pop(); last != nil; last = eventsToTrigger.pop() {
+					last(ctx.GetTraceInfo(), err)
+				}
+				s.eventStackPool.Put(eventsToTrigger)
+			}
+
+			traceCtl.DoFinish(cc, ctx, err)
+		}
+
 		// Hijack may release and close the connection already
 		if zr != nil && !errors.Is(err, errs.ErrHijacked) {
 			zr.Release() //nolint:errcheck
@@ -154,6 +173,13 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 			ctx.GetConn().SetReadTimeout(s.ReadTimeout) //nolint:errcheck
 		}
 
+		if s.EnableTrace {
+			cc = traceCtl.DoStart(c, ctx)
+			internalStats.Record(ctx.GetTraceInfo(), stats.ReadHeaderStart, err)
+			eventsToTrigger.push(func(ti traceinfo.TraceInfo, err error) {
+				internalStats.Record(ti, stats.ReadHeaderFinish, err)
+			})
+		}
 		// Read Headers
 		if err = req.ReadHeader(&ctx.Request.Header, zr); err == nil {
 			if s.EnableTrace {
@@ -174,9 +200,18 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				}
 			} else {
 				err = req.ReadLimitBody(&ctx.Request, zr, s.MaxRequestBodySize, s.GetOnly, !s.DisablePreParseMultipartForm)
-				if err != nil {
-					hlog.SystemLogger().Errorf("[zyl] ReadLimitBody：%+v", err)
-				}
+			}
+		}
+
+		if s.EnableTrace {
+			if ctx.Request.Header.ContentLength() >= 0 {
+				ctx.GetTraceInfo().Stats().SetRecvSize(len(ctx.Request.Header.RawHeaders()) + ctx.Request.Header.ContentLength())
+			} else {
+				ctx.GetTraceInfo().Stats().SetRecvSize(0)
+			}
+			// read body finished
+			if last := eventsToTrigger.pop(); last != nil {
+				last(ctx.GetTraceInfo(), err)
 			}
 		}
 
@@ -236,7 +271,12 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		if serverName != nil {
 			ctx.Response.Header.SetServerBytes(serverName)
 		}
-
+		if s.EnableTrace {
+			internalStats.Record(ctx.GetTraceInfo(), stats.ServerHandleStart, err)
+			eventsToTrigger.push(func(ti traceinfo.TraceInfo, err error) {
+				internalStats.Record(ti, stats.ServerHandleFinish, err)
+			})
+		}
 		// Handle the request
 		//
 		// NOTE: All middlewares and business handler will be executed in this. And at this point, the request has been parsed
@@ -271,10 +311,23 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		if zw == nil {
 			zw = ctx.GetWriter()
 		}
-
+		if s.EnableTrace {
+			internalStats.Record(ctx.GetTraceInfo(), stats.WriteStart, err)
+			eventsToTrigger.push(func(ti traceinfo.TraceInfo, err error) {
+				internalStats.Record(ti, stats.WriteFinish, err)
+			})
+		}
 		if err = writeResponse(ctx, zw); err != nil {
 			hlog.SystemLogger().Errorf("[zyl] writeResponse：%+v", err)
 			return
+		}
+
+		if s.EnableTrace {
+			if ctx.Response.Header.ContentLength() > 0 {
+				ctx.GetTraceInfo().Stats().SetSendSize(ctx.Response.Header.GetHeaderLength() + ctx.Response.Header.ContentLength())
+			} else {
+				ctx.GetTraceInfo().Stats().SetSendSize(0)
+			}
 		}
 
 		// Release the zeroCopyReader before flush to prevent data race
@@ -289,6 +342,12 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 		if err = zw.Flush(); err != nil {
 			hlog.SystemLogger().Errorf("[zyl] Flush：%+v", err)
 			return
+		}
+		if s.EnableTrace {
+			// write finished
+			if last := eventsToTrigger.pop(); last != nil {
+				last(ctx.GetTraceInfo(), err)
+			}
 		}
 
 		// Release request body stream
@@ -320,6 +379,11 @@ func (s Server) Serve(c context.Context, conn network.Conn) (err error) {
 				hlog.SystemLogger().Errorf("[zyl] errHijacked：%+v", err)
 			}
 			return
+		}
+
+		// general case
+		if s.EnableTrace {
+			traceCtl.DoFinish(cc, ctx, err)
 		}
 
 		if connectionClose {

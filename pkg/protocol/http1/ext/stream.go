@@ -137,6 +137,7 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 		if rs.chunkLeft == 0 {
 			chunkSize, err := utils.ParseChunkSize(rs.reader)
 			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] ParseChunkSize2[%d]：%+v", chunkSize, err)
 				return 0, err
 			}
 			if chunkSize == 0 {
@@ -144,6 +145,8 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 				if err == nil {
 					rs.chunkEOF = true
 					err = io.EOF
+				} else {
+					hlog.SystemLogger().Errorf("[zyl] ReadTrailer2[%d]：%+v", chunkSize, err)
 				}
 				return 0, err
 			}
@@ -157,11 +160,18 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 		}
 
 		src, err := rs.reader.Peek(bytesToRead)
+		if err != nil {
+			hlog.SystemLogger().Errorf("[zyl] Peek3[%d]：%+v, src:%s", err, string(src))
+		}
 		copied := copy(p, src)
-		rs.reader.Skip(copied) // nolint: errcheck
+		errs1 := rs.reader.Skip(copied) // nolint: errcheck
+		if errs1 != nil {
+			hlog.SystemLogger().Errorf("[zyl] Skip3：%+v, copied:%d", errs1, copied)
+		}
 		rs.chunkLeft -= copied
 
 		if err != nil {
+			hlog.SystemLogger().Errorf("[zyl] Skip4：%+v", err)
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}
@@ -170,6 +180,9 @@ func (rs *bodyStream) Read(p []byte) (int, error) {
 
 		if rs.chunkLeft == 0 {
 			err = utils.SkipCRLF(rs.reader)
+			if err != nil {
+				hlog.SystemLogger().Errorf("[zyl] SkipCRLF：%+v", err)
+			}
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}
