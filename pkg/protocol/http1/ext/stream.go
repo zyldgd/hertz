@@ -247,7 +247,7 @@ func (rs *bodyStream) skipRest() error {
 		for {
 			chunkSize, err := utils.ParseChunkSize(rs.reader)
 			if err != nil {
-				hlog.SystemLogger().Errorf("[zyl] ParseChunkSize：%+v", err)
+				hlog.SystemLogger().Errorf("[zyl] ParseChunkSize：%+v, chunkSize:%d", err, chunkSize)
 				return err
 			}
 

@@ -137,6 +137,9 @@ func (c *clientRespStream) Close() (err error) {
 	// If error happened in release, the connection may be in abnormal state.
 	// Close it in the callback in order to avoid other unexpected problems.
 	err = ext.ReleaseBodyStream(c.r)
+	if err != nil {
+		hlog.SystemLogger().Errorf("[zyl] ReleaseBodyStream：%+v", err)
+	}
 	shouldClose := false
 	if err != nil {
 		shouldClose = true
@@ -144,6 +147,9 @@ func (c *clientRespStream) Close() (err error) {
 	}
 	if c.closeCallback != nil {
 		err = c.closeCallback(shouldClose)
+		if err != nil {
+			hlog.SystemLogger().Errorf("[zyl] closeCallback：%+v", err)
+		}
 	}
 	c.reset()
 	return
@@ -281,9 +287,15 @@ func writeBodyStream(resp *protocol.Response, w network.Writer, sendBody bool) (
 		if err = WriteHeader(&resp.Header, w); err == nil && sendBody {
 			if resp.ImmediateHeaderFlush {
 				err = w.Flush()
+				if err != nil {
+					hlog.SystemLogger().Errorf("[zyl] Flush：%+v", err)
+				}
 			}
 			if err == nil {
 				err = ext.WriteBodyFixedSize(w, resp.BodyStream(), int64(contentLength))
+				if err != nil {
+					hlog.SystemLogger().Errorf("[zyl] WriteBodyFixedSize：%+v", err)
+				}
 			}
 		}
 	} else {
@@ -291,16 +303,30 @@ func writeBodyStream(resp *protocol.Response, w network.Writer, sendBody bool) (
 		if err = WriteHeader(&resp.Header, w); err == nil && sendBody {
 			if resp.ImmediateHeaderFlush {
 				err = w.Flush()
+				if err != nil {
+					hlog.SystemLogger().Errorf("[zyl] Flush：%+v", err)
+				}
 			}
 			if err == nil {
 				err = ext.WriteBodyChunked(w, resp.BodyStream())
+				if err != nil {
+					hlog.SystemLogger().Errorf("[zyl] WriteBodyChunked：%+v", err)
+				}
 			}
 			if err == nil {
 				err = ext.WriteTrailer(resp.Header.Trailer(), w)
+				if err != nil {
+					hlog.SystemLogger().Errorf("[zyl] WriteTrailer：%+v", err)
+				}
 			}
 		}
 	}
+
 	err1 := resp.CloseBodyStream()
+	if err1 != nil {
+		hlog.SystemLogger().Errorf("[zyl] CloseBodyStream：%+v, contentLength:%d", err1, contentLength)
+	}
+
 	if err == nil {
 		err = err1
 	}

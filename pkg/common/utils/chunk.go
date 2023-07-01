@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
@@ -32,6 +33,7 @@ var errBrokenChunk = errors.NewPublic("cannot find crlf at the end of chunk")
 func ParseChunkSize(r network.Reader) (int, error) {
 	n, err := bytesconv.ReadHexInt(r)
 	if err != nil {
+		hlog.SystemLogger().Errorf("[zyl] ReadHexInt：%+v, err:%+v", n, err)
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
 		}
@@ -40,6 +42,7 @@ func ParseChunkSize(r network.Reader) (int, error) {
 	for {
 		c, err := r.ReadByte()
 		if err != nil {
+			hlog.SystemLogger().Errorf("[zyl] ReadByte1：%+v, err:%+v", c, err)
 			return -1, errors.NewPublic(fmt.Sprintf("cannot read '\r' char at the end of chunk size: %s", err))
 		}
 		// Skip any trailing whitespace after chunk size.
@@ -55,6 +58,7 @@ func ParseChunkSize(r network.Reader) (int, error) {
 	}
 	c, err := r.ReadByte()
 	if err != nil {
+		hlog.SystemLogger().Errorf("[zyl] ReadByte2：%+v, err:%+v", c, err)
 		return -1, errors.NewPublic(fmt.Sprintf("cannot read '\n' char at the end of chunk size: %s", err))
 	}
 	if c != '\n' {

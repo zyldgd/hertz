@@ -45,6 +45,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"io"
 	"strings"
 
@@ -126,6 +127,7 @@ func WriteBodyChunked(w network.Writer, r io.Reader) error {
 			break
 		}
 		if err = WriteChunk(w, buf[:n], true); err != nil {
+			hlog.SystemLogger().Errorf("[zyl] WriteChunk：%+v, buf[:%d]%+v", err, n, buf[:n])
 			break
 		}
 	}
