@@ -119,7 +119,7 @@ func AcquireBodyStream(b *bytebufferpool.ByteBuffer, r network.Reader, t *protoc
 	rs.contentLength = contentLength
 	rs.trailer = t
 	rs.chunkEOF = false
-
+	rs.chunkLeft = 0
 	return rs
 }
 
